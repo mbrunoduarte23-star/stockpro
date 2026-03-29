@@ -3,21 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>StockPro Bearon</title>
-    
-    <!-- PWA Meta Tags -->
+    <title>StockPro</title>
     <meta name="theme-color" content="#2563eb">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="StockPro">
-    <meta name="description" content="Sistema de Gestão de Estoque e Vendas - Bearon Suplementos">
-    
-    <!-- PWA Links -->
+    <meta name="description" content="Sistema de Gestao de Estoque e Vendas">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -25,11 +20,11 @@
     <div id="modal-produto" class="modal-overlay"></div>
     <div id="modal-mov" class="modal-overlay"></div>
     <div id="modal-usuario" class="modal-overlay"></div>
-    
-        <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script>
-      const _firebaseConfig = {
+      var _firebaseConfig = {
         apiKey: "AIzaSyDxtBgdg9dPArhRiT3pQZ2n0VYMwlZexQI",
         authDomain: "stockpro-ccb40.firebaseapp.com",
         projectId: "stockpro-ccb40",
@@ -37,24 +32,33 @@
         messagingSenderId: "753178487994",
         appId: "1:753178487994:web:4a75eb98a819f0f1efe683"
       };
-      firebase.initializeApp(_firebaseConfig);
-      const _fbDB = firebase.firestore();
-      window._fbSalvar = function(dados) {
-        _fbDB.collection('stockpro').doc('dados').set(dados).catch(function(e){console.error('Firebase save error:',e);});
-      };
-      window._fbCarregar = function() {
-        return _fbDB.collection('stockpro').doc('dados').get().then(function(snap){
-          return snap.exists ? snap.data() : null;
-        }).catch(function(){return null;});
-      };
+      try {
+        firebase.initializeApp(_firebaseConfig);
+        var _fbDB = firebase.firestore();
+        window._fbSalvar = function(dados) {
+          _fbDB.collection('stockpro').doc('dados').set(dados)
+            .then(function(){ console.log('Firebase: dados salvos!'); })
+            .catch(function(e){ console.error('Firebase save error:', e); });
+        };
+        window._fbCarregar = function() {
+          return _fbDB.collection('stockpro').doc('dados').get()
+            .then(function(snap){ return snap.exists ? snap.data() : null; })
+            .catch(function(e){ console.error('Firebase load error:', e); return null; });
+        };
+        console.log('Firebase: inicializado com sucesso!');
+      } catch(e) {
+        console.error('Firebase init error:', e);
+        window._fbSalvar = null;
+        window._fbCarregar = null;
+      }
     </script>
+    <script src="script.js"></script>
     <script>
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(reg => console.log('SW registered:', reg.scope))
-                .catch(err => console.log('SW registration failed:', err));
-        }
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/stockpro/sw.js')
+          .then(function(reg){ console.log('SW registered:', reg.scope); })
+          .catch(function(err){ console.log('SW registration failed:', err); });
+      }
     </script>
 </body>
 </html>
