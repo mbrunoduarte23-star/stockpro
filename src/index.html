@@ -26,6 +26,26 @@
     <div id="modal-mov" class="modal-overlay"></div>
     <div id="modal-usuario" class="modal-overlay"></div>
     
+        <script type="module">
+      import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+      import { getFirestore, doc, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
+      const firebaseConfig = {
+        apiKey: "AIzaSyDxtBgdg9dPArhRiT3pQZ2n0VYMwlZexQI",
+        authDomain: "stockpro-ccb40.firebaseapp.com",
+        projectId: "stockpro-ccb40",
+        storageBucket: "stockpro-ccb40.firebasestorage.app",
+        messagingSenderId: "753178487994",
+        appId: "1:753178487994:web:4a75eb98a819f0f1efe683"
+      };
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+      window._fbSalvar = async function(dados) {
+        try { await setDoc(doc(db,'stockpro','dados'), dados); } catch(e) { console.error(e); }
+      };
+      window._fbCarregar = async function() {
+        try { const snap = await getDoc(doc(db,'stockpro','dados')); return snap.exists() ? snap.data() : null; } catch(e) { return null; }
+      };
+    </script>
     <script src="script.js"></script>
     <script>
         // Register Service Worker
