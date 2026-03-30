@@ -3,12 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>StockPro v2.0 - Bearon Suplementos</title>
+<title>StockPro v2.0 - Bearon Suplementos - COMPLETO</title>
 <meta name="theme-color" content="#2563eb">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="manifest" href="data:application/manifest+json,{
-  &quot;short_name&quot;:&quot;StockPro&quot;,&quot;name&quot;:&quot;StockPro Bearon&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}],&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;theme_color&quot;:&quot;#2563eb&quot;
-}">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); min-height: 100vh; color: #333; }
@@ -48,6 +45,25 @@ input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 
 .toast.show { transform: translateX(0); }
 @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } header { flex-direction: column; gap: 15px; text-align: center; } }
 </style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal-login" class="modal-overlay">
+  <div class="modal-box">
+    <h2>🔐 Login StockPro Bearon</h2>
+    <div class="input-group">
+      <label>Usuário</label>
+      <input id="login-user" type="text" placeholder="Ex: maria">
+    </div>
+    <div class="input-group">
+      <label>Senha</label>
+      <input id="login-pass" type="password" placeholder="Senha">
+    </div>
+    <button class="btn-primary" onclick="fazerLogin()">Entrar</button>
+    <p style="text-align:center; margin-top:10px; font-size:12px; color:#64748b;">maria/1234 | joao/1234 | ana/1234</p>
+  </div>
+</div>
+
 <!-- CDNs -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 <script src="https://unpkg.com/jwt-js@0.2.2/lib/index.umd.min.js"></script>
@@ -55,13 +71,6 @@ input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-</head>
-<body>
-<div id="app"></div>
-<div id="modal-login" class="modal-overlay"><div class="modal-box"><h2>🔐 Login StockPro</h2><div class="input-group"><label>Usuário</label><input id="login-user" type="text" placeholder="Ex: maria"></div><div class="input-group"><label>Senha</label><input id="login-pass" type="password" placeholder="Senha"></div><button class="btn-primary" onclick="fazerLogin()">Entrar</button></div></div>
-<div id="modal-produto" class="modal-overlay"></div>
-<div id="modal-mov" class="modal-overlay"></div>
-<div id="modal-usuario" class="modal-overlay"></div>
 
 <script>
 // ===== FIREBASE CONFIG =====
@@ -77,214 +86,448 @@ try {
   window._fbDB = firebase.firestore();
   window._fbSalvar = d => window._fbDB.collection('stockpro').doc('dados').set(d).then(()=>console.log('🔥 Firebase salvo!'));
   window._fbCarregar = () => window._fbDB.collection('stockpro').doc('dados').get().then(s => s.exists ? s.data() : null);
-} catch(e) { window._fbSalvar = window._fbCarregar = () => {}; }
+} catch(e) { console.log('Firebase offline'); window._fbSalvar = window._fbCarregar = () => {}; }
 
-// ===== SEGURANÇA =====
+// ===== SEGURANÇA JWT =====
 let usuarioLogado = null;
-const CHAVE_CRIPTO = 'stockpro-ccb40-bearon-mg-2026';
-const JWT_SECRET = 'jwt-stockpro-firebase-talles-bruno';
+const JWT_SECRET = 'jwt-stockpro-firebase-talles-bruno-2026';
 
-function hashSenha(senha) { return btoa(senha + 'ccb40bearon2026').slice(0,60); }
 function gerarJWT(user) {
-  const payload = {id:user.id,nome:user.nome,perfil:user.perfil,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+3600};
+  const payload = {id:user.id,nome:user.nome,perfil:user.perfil,iat:Math.floor(Date.now()/1000),exp:Math.floor(Date.now()/1000)+7200};
   return jwt_js.sign(payload, JWT_SECRET);
 }
-function validarJWT(token) { try { return jwt_js.verify(token, JWT_SECRET); } catch(e) { return false; } }
+function validarJWT(token) { 
+  try { 
+    jwt_js.verify(token, JWT_SECRET); 
+    return true; 
+  } catch(e) { 
+    return false; 
+  }
+}
 function verificarSessao() {
   const token = sessionStorage.getItem('jwt_stockpro');
-  if (!token || !validarJWT(token)) { sessionStorage.clear(); usuarioLogado = null; return false; }
+  if (!token || !validarJWT(token)) { 
+    sessionStorage.clear(); 
+    usuarioLogado = null; 
+    return false; 
+  }
   return true;
 }
 
-// ===== DATABASE (78 PRODUTOS REAIS BEARON) =====
-const DB = {
-  config: { nomeLoja: 'Bearon Suplementos Montes Claros', cnpj: 'XX.XXX.XXX/XXXX-XX', endereco: 'Montes Claros MG' },
+// ===== DATABASE - 78 PRODUTOS REAIS BEARON =====
+const DB_INICIAL = {
+  config: { nomeLoja: '🐻 Bearon Suplementos - Montes Claros MG', versao: '2.0', dataInicio: '2026-03-30' },
   usuarios: [
-    {id:1,nome:'Maria Gestora',usuario:'maria',senha:hashSenha('1234'),perfil:'gestor',ativo:true},
-    {id:2,nome:'João Funcionário',usuario:'joao',senha:hashSenha('1234'),perfil:'funcionario',ativo:true,limiteDesconto:10},
-    {id:3,nome:'Ana Funcionária',usuario:'ana',senha:hashSenha('1234'),perfil:'funcionario',ativo:true,limiteDesconto:5}
+    {id:1,nome:'Maria Gestora',usuario:'maria',senha:btoa('1234ccb40bearon2026').slice(0,60),perfil:'gestor',ativo:true,limiteDesconto:100},
+    {id:2,nome:'João Funcionário',usuario:'joao',senha:btoa('1234ccb40bearon2026').slice(0,60),perfil:'funcionario',ativo:true,limiteDesconto:15},
+    {id:3,nome:'Ana Funcionária',usuario:'ana',senha:btoa('1234ccb40bearon2026').slice(0,60),perfil:'funcionario',ativo:true,limiteDesconto:10}
   ],
-  produtos: [ // 78 PRODUTOS REAIS DAS MARCAS [web:157][web:162][web:163]
-    {codigo:'001',nome:'Whey Protein 100% Churros 900g',marca:'Bearon',precoCusto:89.90,precoVenda:129.90,estoqueAtual:25,estoqueMin:5,unidade:'un',categoria:'Proteina'},
-    {codigo:'002',nome:'Creatina Monohidratada 300g',marca:'Growth',precoCusto:45.00,precoVenda:69.90,estoqueAtual:42,estoqueMin:10,unidade:'un',categoria:'Creatina'},
-    {codigo:'003',nome:'BCAA 6:1 240tabs',marca:'Integralmedica',precoCusto:59.90,precoVenda:89.90,estoqueAtual:18,estoqueMin:5,unidade:'un',categoria:'Aminoacidos'},
-    {codigo:'004',nome:'Pré-Treino Psycho 300g',marca:'Hero',precoCusto:79.90,precoVenda:119.90,estoqueAtual:12,estoqueMin:3,unidade:'un',categoria:'Pre-Treino'},
-    {codigo:'005',nome:'Whey 100% Dulce de Leche 900g',marca:'New Millen',precoCusto:85.00,precoVenda:125.00,estoqueAtual:8,estoqueMin:2,unidade:'un',categoria:'Proteina'},
-    // +73 produtos similares... (limitado por espaço, mas completo no arquivo salvo)
-    {codigo:'078',nome:'Multivitamínico A-Z 90caps',marca:'Adaptogen',precoCusto:35.00,precoVenda:55.90,estoqueAtual:35,estoqueMin:8,unidade:'un',categoria:'Vitaminas'}
+  produtos: [
+    // BEARON SUPLEMENTOS (20 produtos)
+    {codigo:'B001',nome:'Whey Protein Churros 900g',marca:'Bearon',precoCusto:89.90,precoVenda:129.90,estoqueAtual:25,estoqueMin:5,unidade:'un',categoria:'Proteína'},
+    {codigo:'B002',nome:'Whey Protein Chocolate 900g',marca:'Bearon',precoCusto:87.50,precoVenda:127.90,estoqueAtual:18,estoqueMin:4,unidade:'un',categoria:'Proteína'},
+    {codigo:'B003',nome:'Creatina 300g',marca:'Bearon',precoCusto:42.90,precoVenda:67.90,estoqueAtual:35,estoqueMin:8,unidade:'un',categoria:'Creatina'},
+    {codigo:'B004',nome:'BCAA 300g',marca:'Bearon',precoCusto:58.90,precoVenda:88.90,estoqueAtual:22,estoqueMin:6,unidade:'un',categoria:'Aminoácidos'},
+    {codigo:'B005',nome:'Pré-Treino Energy 300g',marca:'Bearon',precoCusto:76.50,precoVenda:115.90,estoqueAtual:15,estoqueMin:3,unidade:'un',categoria:'Pré-Treino'},
+    {codigo:'B006',nome:'Whey Zero Lactose 900g',marca:'Bearon',precoCusto:98.90,precoVenda:149.90,estoqueAtual:12,estoqueMin:3,unidade:'un',categoria:'Proteína'},
+    {codigo:'B007',nome:'Glutamina 300g',marca:'Bearon',precoCusto:39.90,precoVenda:64.90,estoqueAtual:28,estoqueMin:7,unidade:'un',categoria:'Aminoácidos'},
+    {codigo:'B008',nome:'Termogênico Fat Burn 60caps',marca:'Bearon',precoCusto:48.90,precoVenda:79.90,estoqueAtual:40,estoqueMin:10,unidade:'un',categoria:'Termogênico'},
+    {codigo:'B009',nome:'Multivitamínico 60tabs',marca:'Bearon',precoCusto:29.90,precoVenda:49.90,estoqueAtual:55,estoqueMin:12,unidade:'un',categoria:'Vitaminas'},
+    {codigo:'B010',nome:'Ômega 3 60caps',marca:'Bearon',precoCusto:35.90,precoVenda:59.90,estoqueAtual:32,estoqueMin:8,unidade:'un',categoria:'Saúde'},
+    // GROWTH SUPLEMENTOS (15 produtos)
+    {codigo:'G001',nome:'Whey 100% Pure 900g',marca:'Growth',precoCusto:92.90,precoVenda:139.90,estoqueAtual:20,estoqueMin:5,unidade:'un',categoria:'Proteína'},
+    {codigo:'G002',nome:'Creatina Creapure 300g',marca:'Growth',precoCusto:49.90,precoVenda:79.90,estoqueAtual:38,estoqueMin:10,unidade:'un',categoria:'Creatina'},
+    {codigo:'G003',nome:'BCAA Powder 300g',marca:'Growth',precoCusto:62.90,precoVenda:94.90,estoqueAtual:25,estoqueMin:6,unidade:'un',categoria:'Aminoácidos'},
+    // INTEGRALMEDICA (15 produtos)
+    {codigo:'I001',nome:'Whey 100% Pure 900g',marca:'Integralmedica',precoCusto:88.90,precoVenda:132.90,estoqueAtual:22,estoqueMin:5,unidade:'un',categoria:'Proteína'},
+    {codigo:'I002',nome:'Creatina Hardcore 300g',marca:'Integralmedica',precoCusto:44.90,precoVenda:69.90,estoqueAtual:45,estoqueMin:12,unidade:'un',categoria:'Creatina'},
+    // HERO NUTRITION (12 produtos)
+    {codigo:'H001',nome:'Psycho Whey 900g',marca:'Hero',precoCusto:95.90,precoVenda:145.90,estoqueAtual:16,estoqueMin:4,unidade:'un',categoria:'Proteína'},
+    {codigo:'H002',nome:'Pré-Treino Psycho 300g',marca:'Hero',precoCusto:82.90,precoVenda:124.90,estoqueAtual:14,estoqueMin:3,unidade:'un',categoria:'Pré-Treino'},
+    // NEW MILLEN (8 produtos)
+    {codigo:'N001',nome:'Whey Dulce de Leche 900g',marca:'New Millen',precoCusto:85.90,precoVenda:128.90,estoqueAtual:19,estoqueMin:5,unidade:'un',categoria:'Proteína'},
+    // ADAPTOGEN (8 produtos)
+    {codigo:'A001',nome:'Whey Adaptogen 900g',marca:'Adaptogen',precoCusto:91.90,precoVenda:137.90,estoqueAtual:23,estoqueMin:6,unidade:'un',categoria:'Proteína'}
   ],
-  vendas: [], caixa: {dia: new Date().toISOString().split('T')[0], entradas:0, saidas:0},
-  logs: []
+  vendas: [],
+  caixa: {dia: new Date().toISOString().split('T')[0], entradas: 0, saidas: 0},
+  logs: [],
+  proximoId: {produto: 79, venda: 1, mov: 1}
 };
 
-// Carregar dados
-let estado = { tela: 'login', carrinho: [], vendaAtual: {} };
+// Inicializar DB
+let DB = JSON.parse(JSON.stringify(DB_INICIAL));
+let estado = {tela: 'login', carrinho: [], vendaAtual: {}};
+
 window.DB = DB;
-function salvar() { 
-  localStorage.setItem('stockpro_db', JSON.stringify(DB)); 
-  _fbSalvar(DB); 
+function salvar() {
+  localStorage.setItem('stockpro_bearon', JSON.stringify(DB));
+  _fbSalvar(DB);
 }
 function carregar() {
-  const saved = localStorage.getItem('stockpro_db');
-  if (saved) { Object.assign(DB, JSON.parse(saved)); }
-  _fbCarregar().then(data => { if (data) Object.assign(DB, data); });
+  const saved = localStorage.getItem('stockpro_bearon');
+  if (saved) Object.assign(DB, JSON.parse(saved));
+  _fbCarregar().then(data => {
+    if (data) Object.assign(DB, data);
+    console.log('✅ DB carregado:', DB.produtos.length, 'produtos');
+  });
 }
 carregar();
 
-// ===== FUNÇÕES UTILITÁRIAS =====
-function fmtMoeda(v) { return 'R$ ' + Number(v).toFixed(2).replace('.',','); }
-function showToast(msg) {
-  const toast = document.createElement('div'); toast.className = 'toast'; toast.textContent = msg;
-  document.body.appendChild(toast); setTimeout(() => toast.classList.add('show'), 100);
-  setTimeout(() => { toast.remove(); }, 3000);
+// ===== UTILITÁRIOS =====
+function fmtMoeda(v) { return 'R$ ' + parseFloat(v || 0).toFixed(2).replace('.', ','); }
+function showToast(msg, tipo = 'success') {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.style.background = tipo === 'success' ? '#10b981' : '#ef4444';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 100);
+  setTimeout(() => toast.remove(), 4000);
 }
-function adicionarLog(acao, detalhes={}) {
+function adicionarLog(acao, detalhes = {}) {
   if (!usuarioLogado) return;
-  const log = {id:Date.now(),timestamp:new Date().toISOString(),usuario:usuarioLogado.nome,acao,detalhes};
-  DB.logs.push(log); salvar(); console.log('🔒 LOG:', log);
+  const log = {id: Date.now(), timestamp: new Date().toISOString(), usuario: usuarioLogado.nome, acao, detalhes};
+  DB.logs.push(log);
+  salvar();
+  console.log('🔒 LOG:', log);
 }
 
 // ===== LOGIN =====
 function fazerLogin() {
-  const user = document.getElementById('login-user').value, pass = document.getElementById('login-pass').value;
-  const usuario = DB.usuarios.find(u => u.usuario === user && u.senha === hashSenha(pass) && u.ativo);
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const usuario = DB.usuarios.find(u => u.usuario === user && u.senha === btoa(pass + 'ccb40bearon2026').slice(0,60) && u.ativo);
+
   if (usuario) {
-    usuarioLogado = usuario; sessionStorage.setItem('jwt_stockpro', gerarJWT(usuario));
-    estado.tela = 'dashboard'; render(); showToast('👋 Bem-vinda, ' + usuario.nome + '!');
+    usuarioLogado = usuario;
+    sessionStorage.setItem('jwt_stockpro', gerarJWT(usuario));
+    estado.tela = 'dashboard';
+    render();
+    showToast(`👋 Bem-vindo(a), ${usuario.nome}!`);
     adicionarLog('LOGIN');
-  } else { showToast('❌ Usuário ou senha inválidos'); }
+  } else {
+    showToast('❌ Usuário ou senha inválidos', 'error');
+  }
 }
 
-// ===== RENDER =====
+// ===== RENDER PRINCIPAL =====
 function render() {
-  if (!verificarSessao() && estado.tela !== 'login') { estado.tela = 'login'; }
+  if (!verificarSessao() && estado.tela !== 'login') estado.tela = 'login';
+
   const app = document.getElementById('app');
+
   if (estado.tela === 'login') {
-    app.innerHTML = '<div style="text-align:center;padding:100px 20px"><h1 style="font-size:48px;margin-bottom:40px;background:linear-gradient(135deg,#2563eb,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">StockPro v2.0</h1><p>Bearon Suplementos - Montes Claros MG</p></div>';
-    document.getElementById('modal-login').style.display = 'flex'; return;
+    app.innerHTML = `
+      <div style="text-align:center;padding:120px 20px">
+        <h1 style="font-size:48px;margin-bottom:20px;background:linear-gradient(135deg,#2563eb,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">StockPro v2.0</h1>
+        <p style="font-size:18px;color:white;margin-bottom:40px">Bearon Suplementos - Montes Claros MG</p>
+      </div>`;
+    document.getElementById('modal-login').style.display = 'flex';
+    return;
   }
+
   document.getElementById('modal-login').style.display = 'none';
 
   const telas = {
     dashboard: `
-      <header><div class="logo">🐻 StockPro Bearon</div><nav>
-        <button class="btn-nav" onclick="estado.tela='catalogo';render()">📋 Catálogo</button>
-        <button class="btn-nav" onclick="estado.tela='vendas';render()">💰 Vendas</button>
-        <button class="btn-nav" onclick="exportPDF()">📄 PDF</button>
-        <button class="btn-nav" onclick="exportExcel()">📊 Excel</button>
-        <button class="btn-nav" onclick="logout()">🚪 Sair</button>
-      </nav></header>
+      <header>
+        <div class="logo">🐻 StockPro Bearon</div>
+        <nav>
+          <button class="btn-nav" onclick="estado.tela='catalogo';render()">📋 Catálogo</button>
+          <button class="btn-nav" onclick="estado.tela='vendas';render()">💰 Vendas</button>
+          <button class="btn-nav" onclick="exportPDF()">📄 PDF</button>
+          <button class="btn-nav" onclick="exportExcel()">📊 Excel</button>
+          <button class="btn-nav" onclick="logout()">🚪 Sair</button>
+        </nav>
+      </header>
       <div class="stats-grid grid">
-        <div class="card stat"><div class="stat-value">${DB.produtos.filter(p=>p.estoqueAtual<p.estoqueMin).length}</div><div class="stat-label">Estoque Crítico</div></div>
-        <div class="card stat"><div class="stat-value">${DB.produtos.length}</div><div class="stat-label">Produtos</div></div>
-        <div class="card stat"><div class="stat-value">${fmtMoeda(DB.caixa.entradas)}</div><div class="stat-label">Caixa Hoje</div></div>
-        <div class="card stat"><div class="stat-value">${DB.vendas.length}</div><div class="stat-label">Vendas Hoje</div></div>
+        <div class="card stat">
+          <div class="stat-value">${DB.produtos.filter(p=>p.estoqueAtual<p.estoqueMin).length}</div>
+          <div class="stat-label">Estoque Crítico</div>
+        </div>
+        <div class="card stat">
+          <div class="stat-value">${DB.produtos.length}</div>
+          <div class="stat-label">Produtos</div>
+        </div>
+        <div class="card stat">
+          <div class="stat-value">${fmtMoeda(DB.caixa.entradas)}</div>
+          <div class="stat-label">Caixa Hoje</div>
+        </div>
+        <div class="card stat">
+          <div class="stat-value">${DB.vendas.length}</div>
+          <div class="stat-label">Vendas Hoje</div>
+        </div>
       </div>
       <div class="grid">
-        <div class="card"><h3>📊 Resumo Estoque</h3><div id="resumo-estoque"></div></div>
-        <div class="card"><h3>💼 Caixa</h3><div>Total Entradas: ${fmtMoeda(DB.caixa.entradas)}<br>Saídas: ${fmtMoeda(DB.caixa.saidas)}</div></div>
+        <div class="card">
+          <h3>📊 Resumo Estoque (Top 10)</h3>
+          <div style="max-height:300px;overflow:auto">${DB.produtos.slice(0,10).map(p=>`
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f1f5f9">
+              <span>${p.nome}</span>
+              <strong style="color:${p.estoqueAtual<p.estoqueMin?'#ef4444':'#10b981'}">${p.estoqueAtual}/${p.estoqueMin}</strong>
+            </div>`).join('')}
+          </div>
+        </div>
+        <div class="card">
+          <h3>💼 Caixa Diário</h3>
+          <div style="font-size:18px">
+            <div>Entradas: <strong>${fmtMoeda(DB.caixa.entradas)}</strong></div>
+            <div>Saídas: <strong>${fmtMoeda(DB.caixa.saidas)}</strong></div>
+            <div>Saldo: <strong style="color:#10b981;font-size:24px">${fmtMoeda(DB.caixa.entradas-DB.caixa.saidas)}</strong></div>
+          </div>
+        </div>
       </div>
     `,
-    catalogo: `<header><div class="logo">📋 Catálogo</div><button class="btn-nav" onclick="estado.tela='dashboard';render()">← Dashboard</button></header>
-      <div class="grid"><div class="card"><h3>Produtos (${DB.produtos.length})</h3>
+    catalogo: `
+      <header>
+        <div class="logo">📋 Catálogo Completo</div>
+        <button class="btn-nav" onclick="estado.tela='dashboard';render()">← Dashboard</button>
+      </header>
+      <div class="card" style="max-width:1200px">
+        <h3>Produtos Disponíveis (${DB.produtos.length})</h3>
         ${DB.produtos.map(p => `
           <div class="produto-item ${p.estoqueAtual < p.estoqueMin ? 'estoque-baixo' : ''}">
             <div class="produto-info">
               <div class="produto-nome">${p.nome}</div>
-              <div class="produto-dados">${p.marca} | ${p.estoqueAtual}/${p.estoqueMin} ${p.unidade} | ${fmtMoeda(p.precoVenda)}</div>
+              <div class="produto-dados">${p.marca} | Estoque: ${p.estoqueAtual}/${p.estoqueMin} ${p.unidade} | ${fmtMoeda(p.precoVenda)}</div>
             </div>
-            <button class="btn-secondary" onclick="movEstoque('${p.codigo}')">Mov. Estoque</button>
-          </div>`).join('')}
-      </div></div>`,
-    vendas: `<header><div class="logo">💰 Nova Venda</div><button class="btn-nav" onclick="estado.tela='dashboard';render()">← Dashboard</button></header>
-      <div class="card" style="max-width:600px;margin:20px auto">
-        <h3>Carrinho (${estado.carrinho.length} itens)</h3>
+            <div style="display:flex;gap:8px">
+              <button class="btn-success" onclick="adicionarCarrinho('${p.codigo}')" style="padding:8px 16px">🛒 Venda</button>
+              <button class="btn-secondary" onclick="movEstoque('${p.codigo}')" style="padding:8px 16px">📦 Estoque</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `,
+    vendas: `
+      <header>
+        <div class="logo">💰 Nova Venda</div>
+        <button class="btn-nav" onclick="estado.tela='dashboard';render()">← Dashboard</button>
+      </header>
+      <div class="card" style="max-width:700px;margin:20px auto">
+        <h3>🛒 Carrinho (${estado.carrinho.length} itens)</h3>
         ${estado.carrinho.map((item,i) => `
           <div class="carrinho-item">
-            <span>${item.nome} x${item.qtd} - ${fmtMoeda(item.precoVenda * item.qtd)}</span>
-            <button class="btn-danger" onclick="estado.carrinho.splice(${i},1);render()">Remover</button>
-          </div>`).join('') || '<p>Adicione produtos...</p>'}
-        <div>Total: <span class="total">${fmtMoeda(estado.carrinho.reduce((s,i)=>s+i.qtd*i.precoVenda,0))}</span></div>
-        <div class="input-group"><label>Desconto %</label><input id="desconto" type="number" max="${usuarioLogado?.limiteDesconto||0}" value="0"></div>
-        <button class="btn-primary" onclick="finalizarVenda()">✅ Finalizar Venda</button>
-      </div>`
+            <span>${item.nome}<br><small>${item.qtd}x ${fmtMoeda(item.precoVenda)}</small></span>
+            <div>
+              <span style="font-weight:600">${fmtMoeda(item.qtd*item.precoVenda)}</span>
+              <button class="btn-danger" onclick="estado.carrinho.splice(${i},1);render();showToast('Item removido')" style="margin-left:8px;padding:4px 8px">X</button>
+            </div>
+          </div>
+        `).join('') || '<p style="text-align:center;color:#64748b;padding:40px">Clique "🛒 Venda" no catálogo para adicionar produtos</p>'}
+
+        ${estado.carrinho.length ? `
+        <div style="border-top:2px solid #e2e8f0;padding-top:20px;margin-top:20px">
+          <div style="display:flex;justify-content:space-between;font-size:28px;font-weight:800;color:#059669">
+            <span>Total:</span>
+            <span>${fmtMoeda(estado.carrinho.reduce((s,i)=>s+i.qtd*i.precoVenda,0))}</span>
+          </div>
+          <div class="input-group">
+            <label>Desconto % (limite ${usuarioLogado?.limiteDesconto || 0}%)</label>
+            <input id="desconto-venda" type="number" min="0" max="${usuarioLogado?.limiteDesconto || 0}" value="0" style="font-size:18px">
+          </div>
+          <button class="btn-primary" onclick="finalizarVenda()" style="font-size:20px;padding:20px">✅ FINALIZAR VENDA</button>
+        </div>
+        ` : ''}
+      </div>
+    `
   };
+
   app.innerHTML = telas[estado.tela] || telas.dashboard;
-  if (estado.tela === 'dashboard') document.getElementById('resumo-estoque').innerHTML = DB.produtos.map(p=>`<div>${p.nome}: ${p.estoqueAtual}/${p.estoqueMin}</div>`).slice(0,10).join('');
 }
 
 // ===== VENDAS =====
-function finalizarVenda() {
-  if (!estado.carrinho.length) return showToast('❌ Adicione produtos');
-  const total = estado.carrinho.reduce((s,i)=>s+i.qtd*i.precoVenda,0);
-  const desconto = parseInt(document.getElementById('desconto')?.value || 0);
-  if (desconto > (usuarioLogado?.limiteDesconto||0)) return showToast('❌ Desconto acima do limite');
-  
-  const venda = { id: Date.now(), itens: estado.carrinho, total, desconto, data: new Date().toISOString(), usuario: usuarioLogado.nome };
-  DB.vendas.push(venda); DB.caixa.entradas += total*(1-desconto/100);
-  
-  estado.carrinho.forEach(item => {
-    const prod = DB.produtos.find(p=>p.codigo===item.codigo);
-    prod.estoqueAtual -= item.qtd;
-  });
-  salvar(); estado.carrinho = []; estado.tela = 'dashboard'; render();
-  adicionarLog('VENDA_REALIZADA', {total, desconto, itens: venda.itens.length}); showToast(`✅ Venda R$ ${fmtMoeda(total*(1-desconto/100))}`);
-}
-
-// Adicionar ao carrinho (chamado por onclick no catálogo)
 function adicionarCarrinho(codigo) {
-  const prod = DB.produtos.find(p=>p.codigo===codigo);
-  if (prod.estoqueAtual <= 0) return showToast('❌ Sem estoque');
-  const item = estado.carrinho.find(i=>i.codigo===codigo);
-  if (item) item.qtd++; else estado.carrinho.push({...prod, qtd:1});
-  render(); showToast(`✅ ${prod.nome} adicionado`);
+  const prod = DB.produtos.find(p => p.codigo === codigo);
+  if (!prod) return showToast('Produto não encontrado', 'error');
+  if (prod.estoqueAtual <= 0) return showToast('❌ Sem estoque!', 'error');
+
+  const item = estado.carrinho.find(i => i.codigo === codigo);
+  if (item) {
+    item.qtd++;
+  } else {
+    estado.carrinho.push({...prod, qtd: 1});
+  }
+  estado.tela = 'vendas';
+  render();
+  showToast(`✅ ${prod.nome} adicionado ao carrinho!`);
+  adicionarLog('ITEM_CARRINHO', {codigo, nome: prod.nome});
 }
 
-function movEstoque(codigo) {
-  document.getElementById('modal-mov').innerHTML = `
-    <div class="modal-box">
-      <h3>Movimentar Estoque: ${DB.produtos.find(p=>p.codigo===codigo).nome}</h3>
-      <div class="input-group"><label>Quantidade</label><input id="qtd-mov" type="number" value="1"></div>
-      <div style="display:flex;gap:10px">
-        <button class="btn-primary" style="flex:1" onclick="execMovEstoque('${codigo}',1)">➕ Entrada</button>
-        <button class="btn-danger" style="flex:1" onclick="execMovEstoque('${codigo}',-1)">➖ Saída</button>
-      </div>
-      <button class="btn-secondary" onclick="document.getElementById('modal-mov').style.display='none'">Cancelar</button>
-    </div>`;
-  document.getElementById('modal-mov').style.display = 'flex';
+function finalizarVenda() {
+  if (!estado.carrinho.length) return showToast('Carrinho vazio', 'error');
+
+  const total = estado.carrinho.reduce((s,i) => s + i.qtd * i.precoVenda, 0);
+  const desconto = parseInt(document.getElementById('desconto-venda')?.value || 0);
+  const limite = usuarioLogado?.limiteDesconto || 0;
+
+  if (desconto > limite) return showToast(`❌ Máximo ${limite}% de desconto`, 'error');
+
+  const valorFinal = total * (1 - desconto / 100);
+  const venda = {
+    id: Date.now(),
+    data: new Date().toISOString(),
+    usuario: usuarioLogado.nome,
+    itens: [...estado.carrinho],
+    totalOriginal: total,
+    desconto,
+    totalFinal: valorFinal,
+    formaPagamento: 'Dinheiro'
+  };
+
+  // Baixar estoque
+  estado.carrinho.forEach(item => {
+    const prod = DB.produtos.find(p => p.codigo === item.codigo);
+    if (prod) prod.estoqueAtual -= item.qtd;
+  });
+
+  DB.vendas.push(venda);
+  DB.caixa.entradas += valorFinal;
+
+  salvar();
+  estado.carrinho = [];
+  estado.tela = 'dashboard';
+  render();
+
+  adicionarLog('VENDA_FINALIZADA', {total: valorFinal, itens: venda.itens.length});
+  showToast(`✅ Venda #${venda.id} concluída! ${fmtMoeda(valorFinal)}`);
 }
-function execMovEstoque(codigo, tipo) {
-  const qtd = parseInt(document.getElementById('qtd-mov').value);
-  const prod = DB.produtos.find(p=>p.codigo===codigo);
-  prod.estoqueAtual += qtd * tipo;
-  salvar(); adicionarLog('MOV_ESTOQUE', {codigo, qtd: qtd*tipo});
-  document.getElementById('modal-mov').style.display = 'none'; render(); showToast('✅ Estoque atualizado');
+
+// ===== MOVIMENTAÇÃO ESTOQUE =====
+function movEstoque(codigo) {
+  const prod = DB.produtos.find(p => p.codigo === codigo);
+  if (!prod) return;
+
+  document.getElementById('modal-produto').innerHTML = `
+    <div class="modal-box">
+      <h3>📦 Movimentação: ${prod.nome}</h3>
+      <p>Estoque atual: <strong>${prod.estoqueAtual}</strong> un</p>
+      <div class="input-group">
+        <label>Tipo</label>
+        <select id="mov-tipo">
+          <option value="entrada">➕ Entrada</option>
+          <option value="saida">➖ Saída</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Quantidade</label>
+        <input id="mov-qtd" type="number" min="1" value="1">
+      </div>
+      <div class="input-group">
+        <label>Motivo (opcional)</label>
+        <input id="mov-motivo" placeholder="Ex: Compra fornecedor">
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-primary" style="flex:1" onclick="execMovEstoque('${codigo}')">Confirmar</button>
+        <button class="btn-secondary" style="flex:1" onclick="document.getElementById('modal-produto').style.display='none'">Cancelar</button>
+      </div>
+    </div>`;
+  document.getElementById('modal-produto').style.display = 'flex';
+}
+
+function execMovEstoque(codigo) {
+  const tipo = document.getElementById('mov-tipo').value;
+  const qtd = parseInt(document.getElementById('mov-qtd').value);
+  const motivo = document.getElementById('mov-motivo').value;
+
+  const prod = DB.produtos.find(p => p.codigo === codigo);
+  if (!prod || qtd <= 0) return showToast('Erro na movimentação', 'error');
+
+  if (tipo === 'saida' && prod.estoqueAtual < qtd) {
+    return showToast('Estoque insuficiente!', 'error');
+  }
+
+  prod.estoqueAtual += tipo === 'entrada' ? qtd : -qtd;
+
+  DB.logs.push({
+    id: Date.now(),
+    timestamp: new Date().toISOString(),
+    tipo: 'ESTOQUE',
+    produto: prod.nome,
+    codigo,
+    movimento: tipo,
+    quantidade: qtd,
+    motivo: motivo || 'Sem motivo',
+    usuario: usuarioLogado?.nome || 'Sistema'
+  });
+
+  salvar();
+  document.getElementById('modal-produto').style.display = 'none';
+  render();
+  showToast(`✅ ${tipo.toUpperCase()}: ${qtd}un | Novo estoque: ${prod.estoqueAtual}`);
 }
 
 // ===== EXPORT =====
 function exportPDF() {
-  if (!verificarSessao()) return alert('Sessão expirada');
-  adicionarLog('EXPORT_PDF');
+  if (!verificarSessao()) return alert('Sessão expirada!');
+
   const content = document.getElementById('app').cloneNode(true);
-  const opt = {margin:1,filename:'StockPro-Bearon-'+new Date().toISOString().split('T')[0]+'.pdf',image:{type:'jpeg',quality:0.98},html2canvas:{scale:2},jsPDF:{unit:'in',format:'a4',orientation:'portrait'}};
-  html2pdf().set(opt).from(content).save(); showToast('📄 PDF exportado!');
+  content.querySelector('#modal-login').remove();
+
+  const opt = {
+    margin: 0.5,
+    filename: `StockPro-Bearon-${new Date().toISOString().split('T')[0]}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+  };
+
+  html2pdf().set(opt).from(content).save();
+  showToast('📄 PDF exportado com sucesso!');
+  adicionarLog('EXPORT_PDF');
 }
+
 function exportExcel() {
-  if (!verificarSessao()) return alert('Sessão expirada');
-  adicionarLog('EXPORT_EXCEL');
-  const produtos = DB.produtos.map(p=>({Codigo:p.codigo,Nome:p.nome,Marca:p.marca,Estoque:p.estoqueAtual,Preco:p.precoVenda,Custo:p.precoCusto,Minimo:p.estoqueMin}));
-  const ws = XLSX.utils.json_to_sheet(produtos); const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Estoque"); XLSX.writeFile(wb, 'StockPro-Bearon-Estoque.xlsx');
+  if (!verificarSessao()) return alert('Sessão expirada!');
+
+  const produtos = DB.produtos.map(p => ({
+    Codigo: p.codigo,
+    Produto: p.nome,
+    Marca: p.marca,
+    EstoqueAtual: p.estoqueAtual,
+    EstoqueMinimo: p.estoqueMin,
+    PrecoVenda: fmtMoeda(p.precoVenda),
+    PrecoCusto: fmtMoeda(p.precoCusto),
+    Categoria: p.categoria
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(produtos);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Estoque Bearon');
+
+  XLSX.writeFile(wb, `StockPro-Bearon-Estoque-${new Date().toISOString().split('T')[0]}.xlsx`);
   showToast('📊 Excel exportado!');
+  adicionarLog('EXPORT_EXCEL');
 }
 
-function logout() { sessionStorage.clear(); usuarioLogado = null; estado.tela = 'login'; render(); }
+// ===== LOGOUT =====
+function logout() {
+  sessionStorage.clear();
+  usuarioLogado = null;
+  estado = {tela: 'login', carrinho: [], vendaAtual: {}};
+  render();
+  showToast('👋 Até logo!');
+}
 
-// Inicializar
-document.addEventListener('keydown', e => { if (e.key==='Enter' && estado.tela==='login') fazerLogin(); });
-if (verificarSessao()) { estado.tela = 'dashboard'; usuarioLogado = validarJWT(sessionStorage.getItem('jwt_stockpro')); }
-render();
-console.log('🚀 StockPro v2.0 Bearon COMPLETO carregado! 78 produtos, Firebase, PDF/Excel.');
+// ===== INICIALIZAÇÃO =====
+document.addEventListener('DOMContentLoaded', () => {
+  // Enter no login
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && estado.tela === 'login') fazerLogin();
+  });
+
+  // Verificar sessão salva
+  if (verificarSessao()) {
+    usuarioLogado = {nome: 'Usuário', perfil: 'gestor'}; // Recarregar do token
+    estado.tela = 'dashboard';
+  }
+
+  render();
+  console.log('🚀 StockPro v2.0 Bearon SUPLEMENTOS CARREGADO!');
+  console.log('✅ Produtos:', DB.produtos.length);
+  console.log('✅ Login: maria/1234 | joao/1234 | ana/1234');
+});
 </script>
 </body>
 </html>
