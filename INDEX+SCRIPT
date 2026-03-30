@@ -569,7 +569,7 @@ function renderCatalogo() {
               <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap">
                 <button class="btn-success" onclick="adicionarCarrinho('${p.codigo}')">🛒 Venda</button>
                 <button class="btn-warning" onclick="abrirMovEstoque('${p.codigo}')">📦 Estoque</button>
-                ${isGestor ? `<button class="btn-secondary" onclick="abrirModalProduto('${p.codigo}')">✏️</button>` : ''}
+                ${isGestor ? `<button class="btn-secondary" onclick="abrirModalProduto('${p.codigo}')">✏️</button><button class="btn-danger" onclick="removerProduto('${p.codigo}')">🗑️ Remover</button>` : ''}
               </div>
             </div>`).join('')}
       </div>
@@ -896,7 +896,8 @@ function salvarProduto(codigoExistente) {
   render();
 }
 
-function fecharModal(id) {
+function removerProduto(codigo) {   if (usuarioLogado.perfil !== 'gestor') return showToast('Apenas gestores podem remover produtos', 'error');   const prod = DB.produtos.find(p => p.codigo === codigo);   if (!prod) return;   if (!confirm(`Tem certeza que deseja remover "${prod.nome}"?
+Esta ação não pode ser desfeita.`)) return;   DB.produtos = DB.produtos.filter(p => p.codigo !== codigo);   adicionarLog('PRODUTO_REMOVIDO', { codigo, nome: prod.nome });   salvarCompleto();   render();   showToast(`"${prod.nome}" removido do catálogo.`); } function fecharModal(id) { {
   document.getElementById(id).style.display = 'none';
 }
 
