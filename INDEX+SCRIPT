@@ -137,12 +137,11 @@ try {
     appId: "1:753178487994:web:4a75eb98a819f0f1efe683"
   });
   window._fbDB = firebase.firestore();
-  window._fbSalvar = d => window._fbDB.collection('stockpro').doc('dados').set(d).catch(e=>console.log('Firebase erro:', e));
-  window._fbCarregar = () => window._fbDB.collection('stockpro').doc('dados').get().then(s => s.exists ? s.data() : null).catch(()=>null);
+  window._fbSalvar = d => window._fbDB.collection('stockpro').doc('dados').set(d).catch(e => console.log('Firebase erro:', e));
+  window._fbCarregar = () => window._fbDB.collection('stockpro').doc('dados').get().then(s => s.exists ? s.data() : null).catch(() => null);
   console.log('✅ Firebase conectado!');
 } catch(e) {
-  
-  window._fbSalvar = () => {};
+  window._fbSalvar = () => Promise.resolve();
   window._fbCarregar = () => Promise.resolve(null);
 }
 
@@ -264,36 +263,47 @@ let estado = {
 window.DB = DB;
 
 // ===== PERSISTÊNCIA =====
-function salvar() {
-  try {
-    
-    _fbSalvar(DB);
-  } catch(e) {
-    console.error('Erro ao salvar:', e);
-  }
-}
+function salvar() { salvarCompleto(); } // alias de compatibilidade
 
 function carregar() {
-  const saved = null; // localStorage removido
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      // Mescla mantendo o array de produtos inicial se salvo estiver vazio
-      if (parsed.produtos && parsed.produtos.length > 0) {
-        Object.assign(DB, parsed);
-      } else {
-        const prods = DB.produtos;
-        Object.assign(DB, parsed);
-        DB.produtos = prods;
-      }
-    } catch(e) {  }
-  }
   _fbCarregar().then(data => {
-    if (data && data.produtos && data.produtos.length > 0) {
-      Object.assign(DB, data);
-      if (usuarioLogado) render();
+    if (data) {
+      // Carrega vendas, caixa, logs e produtos do Firebase (dados operacionais)
+      if (data.vendas)   DB.vendas   = data.vendas;
+      if (data.caixa)    DB.caixa    = data.caixa;
+      if (data.logs)     DB.logs     = data.logs;
+      if (data.proximoId) DB.proximoId = data.proximoId;
+      // Produtos: usa os do Firebase se tiver, senão mantém os do DB_INICIAL
+      if (data.produtos && data.produtos.length > 0) DB.produtos = data.produtos;
+      // NUNCA sobrescreve usuários — sempre usa os do DB_INICIAL com senhas corretas
+      // (usuários criados pelo gestor são salvos separado abaixo)
+      if (data.usuariosExtras && data.usuariosExtras.length > 0) {
+        // Adiciona apenas usuários criados pelo gestor (não os padrão)
+        const idsBase = [1, 2, 3];
+        data.usuariosExtras.forEach(u => {
+          if (!idsBase.includes(u.id) && !DB.usuarios.find(x => x.id === u.id)) {
+            DB.usuarios.push(u);
+          }
+        });
+      }
+      console.log('✅ Firebase carregado:', DB.produtos.length, 'produtos,', DB.vendas.length, 'vendas');
+    } else {
+      console.log('✅ Primeira execução — dados iniciais carregados');
     }
-    console.log('✅ DB:', DB.produtos.length, 'produtos carregados');
+    if (usuarioLogado) render();
+  });
+}
+
+function salvarCompleto() {
+  // Salva tudo EXCETO os 3 usuários base (salva só os extras criados pelo gestor)
+  const extras = DB.usuarios.filter(u => u.id > 3);
+  _fbSalvar({
+    vendas:        DB.vendas,
+    caixa:         DB.caixa,
+    logs:          DB.logs,
+    produtos:      DB.produtos,
+    proximoId:     DB.proximoId,
+    usuariosExtras: extras
   });
 }
 
@@ -323,13 +333,33 @@ function adicionarLog(acao, detalhes = {}) {
   if (DB.logs.length > 500) DB.logs = DB.logs.slice(0, 500);
 }
 
+// ===== NORMALIZAR SENHAS (garante formato correto após carregar do Firebase) =====
+function normalizarSenhas() {
+  // Senhas fixas dos usuários padrão — sempre mantém sincronizado
+  const senhasPadrao = {
+    'maria': 'maria1234bearon',
+    'joao':  'joao1234bearon',
+    'ana':   'ana1234bearon'
+  };
+  DB.usuarios.forEach(u => {
+    if (senhasPadrao[u.usuario]) {
+      u.senha = senhasPadrao[u.usuario];
+    }
+  });
+}
+
 // ===== LOGIN / LOGOUT =====
 function fazerLogin() {
   const user = document.getElementById('login-user').value.trim().toLowerCase();
   const pass = document.getElementById('login-pass').value;
 
+  // Suporta tanto o hash novo (usuario+senha+bearon) quanto a senha direta (compatibilidade)
   const senhaHash = user + pass + 'bearon';
-  const usuario = DB.usuarios.find(u => u.usuario === user && u.senha === senhaHash && u.ativo);
+  const usuario = DB.usuarios.find(u =>
+    u.usuario === user &&
+    (u.senha === senhaHash || u.senha === pass || u.senha === (pass + 'ccb40bearon2026').slice(0,60)) &&
+    u.ativo
+  );
 
   if (usuario) {
     usuarioLogado = usuario;
@@ -339,7 +369,7 @@ function fazerLogin() {
     render();
     showToast(`Bem-vindo(a), ${usuario.nome}!`);
     adicionarLog('LOGIN');
-    salvar();
+    salvarCompleto();
   } else {
     showToast('Usuário ou senha inválidos', 'error');
     document.getElementById('login-pass').value = '';
@@ -349,7 +379,7 @@ function fazerLogin() {
 
 function logout() {
   adicionarLog('LOGOUT');
-  salvar();
+  salvarCompleto();
   
   usuarioLogado = null;
   estado = { tela: 'login', carrinho: [], busca: '', filtroMarca: 'Todas', filtroCategoria: 'Todas' };
@@ -723,7 +753,7 @@ function finalizarVenda() {
   DB.caixa.entradas += totalFinal;
 
   adicionarLog('VENDA', { id: venda.id, total: totalFinal, desconto, itens: venda.itens.length, forma: formaPgto });
-  salvar();
+  salvarCompleto();
 
   estado.carrinho = [];
   estado.tela = 'dashboard';
@@ -784,7 +814,7 @@ function confirmarMovEstoque(codigo) {
   prod.estoqueAtual += tipo === 'entrada' ? qtd : -qtd;
 
   adicionarLog('MOV_ESTOQUE', { codigo, nome: prod.nome, tipo, qtd, motivo, novoEstoque: prod.estoqueAtual });
-  salvar();
+  salvarCompleto();
   fecharModal('modal-estoque');
   render();
   showToast(`${tipo === 'entrada' ? '➕ Entrada' : '➖ Saída'}: ${qtd} ${prod.unidade} | Novo estoque: ${prod.estoqueAtual}`);
@@ -861,7 +891,7 @@ function salvarProduto(codigoExistente) {
     adicionarLog('PRODUTO_NOVO', { codigo: novoCodigo, nome });
   }
 
-  salvar();
+  salvarCompleto();
   fecharModal('modal-produto');
   render();
 }
@@ -1063,7 +1093,7 @@ function salvarUsuario(id) {
     showToast(`Usuário ${nome} criado!`);
   }
 
-  salvar();
+  salvarCompleto();
   fecharModal('modal-produto');
   render();
 }
@@ -1073,7 +1103,7 @@ function toggleUsuario(id) {
   if (!u) return;
   u.ativo = !u.ativo;
   adicionarLog('USUARIO_TOGGLE', { id, nome: u.nome, ativo: u.ativo });
-  salvar();
+  salvarCompleto();
   render();
   showToast(`${u.nome}: ${u.ativo ? 'ativado' : 'desativado'}`);
 }
@@ -1123,6 +1153,7 @@ function exportExcel() {
 }
 
 // ===== INICIALIZAÇÃO =====
+normalizarSenhas(); // garante senhas corretas antes do Firebase carregar
 carregar();
 
 document.addEventListener('DOMContentLoaded', () => {
