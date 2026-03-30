@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-<head><script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf
+<head><meta charset="UTF-8">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>StockPro v2.0 - Bearon Suplementos</title>
@@ -11,7 +11,7 @@
 <!-- CDN TODOS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 <script src="https://unpkg.com/jwt-js@0.2.2/lib/index.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<meta charset="UTF-8">.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -38,25 +38,8 @@ try {
   window._fbCarregar = () => window._fbDB.collection('stockpro').doc('dados').get().then(s => s.exists ? s.data() : null);
 } catch(e) { window._fbSalvar = window._fbCarregar = () => {}; }
 
-// ===== DB 78 PRODUTOS BEARON (SEU ORIGINAL) =====
-const DB = {
-  usuarios: [
-    {id:1,nome:'Maria Gestora',usuario:'maria',senha:'1234',perfil:'gestor',ativo:true,limiteDesconto:100},
-    {id:2,nome:'Joao Funcionario',usuario:'joao',senha:'1234',perfil:'funcionario',ativo:true,limiteDesconto:10},
-    {id:3,nome:'Ana Funcionaria',usuario:'ana',senha:'1234',perfil:'funcionario',ativo:true,limiteDesconto:5}
-  ],
-  produtos: [ /* SEUS 78 PRODUTOS COMPLETOS AQUI - coloco resumo por brevidade */
-    {id:1,codigo:'P001',nome:'Whey Protein - Adaptogen',marca:'Adaptogen',categoria:'Suplementos',precoVenda:99.9,estoqueAtual:0,estoqueMinimo:5,ativo:true},
-    /* ... seus 77 outros produtos intactos ... */
-    {id:78,codigo:'P078',nome:'ZMA - Bearon',marca:'Bearon',categoria:'Suplementos',precoVenda:42.9,estoqueAtual:0,estoqueMinimo:5,ativo:true}
-  ],
-  vendas:[],movimentacoes:[],caixa:[],logs:[],proximoId:{produto:79,venda:1,mov:1,caixa:1,usuario:4}
-};
-
-let estado = {usuario:null,paginaAtual:'dashboard',vendaAtual:[],filtroProduto:'',paginaProduto:1,itensPorPagina:10};
+// ===== SEGURANÇA + EXPORT (ADICIONADO) =====
 let usuarioLogado = null;
-
-// ===== SEGURANÇA v2.0 =====
 const CHAVE_CRIPTO = 'stockpro-ccb40-bearon-mg-2026';
 const JWT_SECRET = 'jwt-stockpro-firebase-talles-bruno';
 
@@ -76,7 +59,7 @@ function validarJWT(token) {
 function verificarSessao() {
   const token = sessionStorage.getItem('jwt_stockpro');
   if (!token || !validarJWT(token)) {
-    sessionStorage.clear(); usuarioLogado = null; adicionarLog('SESSAO_EXPIRADA'); return false;
+    sessionStorage.clear(); usuarioLogado = null; return false;
   }
   return true;
 }
@@ -84,80 +67,45 @@ function verificarSessao() {
 function adicionarLog(acao, detalhes={}) {
   if (!usuarioLogado) return;
   const log = {id:Date.now(),timestamp:new Date().toISOString(),usuario:usuarioLogado.nome,acao,detalhes};
-  DB.logs.push(log); salvar(); console.log('🔒 LOG:', log);
+  window.DB.logs = window.DB.logs || [];
+  window.DB.logs.push(log);
+  salvar();
+  console.log('🔒 LOG:', log);
 }
 
-function protegerSenhas() {
-  DB.usuarios.forEach(u => { if (!u.senhaHash) u.senhaHash = hashSenha(u.senha); });
-}
-
-// ===== EXPORT PDF + EXCEL v2.0 =====
-function exportPDF(tipo='dashboard') {
-  if (!verificarSessao()) return;
-  adicionarLog('EXPORT_PDF', {tipo});
-  const content = document.querySelector('.main-content')?.cloneNode(true) || document.getElementById('app').cloneNode(true);
-  const sidebar = content.querySelector('.sidebar'); if (sidebar) sidebar.remove();
+function exportPDF() {
+  if (!verificarSessao()) { alert('Sessão expirada'); return; }
+  adicionarLog('EXPORT_PDF');
+  const content = document.getElementById('app').cloneNode(true);
   const opt = {
-    margin: 0.5, filename: `StockPro-${tipo}-${hoje()}.pdf`, image: {type:'jpeg',quality:0.98},
-    html2canvas: {scale:2}, jsPDF: {unit:'in',format:'a4',orientation:'portrait'}
+    margin: 1, filename: 'StockPro-Relatorio-'+new Date().toISOString().split('T')[0]+'.pdf',
+    image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
   };
   html2pdf().set(opt).from(content).save();
-  showToast('📄 PDF baixado!', 'success');
+  showToast('📄 PDF exportado!');
 }
 
-function exportExcel(dados, nome='relatorio') {
-  if (!verificarSessao()) return;
-  adicionarLog('EXPORT_EXCEL', {nome});
-  const ws = XLSX.utils.json_to_sheet(dados);
+function exportExcel() {
+  if (!verificarSessao()) { alert('Sessão expirada'); return; }
+  adicionarLog('EXPORT_EXCEL');
+  const produtos = window.DB.produtos.map(p => ({Codigo: p.codigo, Nome: p.nome, Marca: p.marca, Estoque: p.estoqueAtual, Preco: p.precoVenda}));
+  const ws = XLSX.utils.json_to_sheet(produtos);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, nome);
-  XLSX.writeFile(wb, `StockPro-${nome}-${hoje()}.xlsx`);
-  showToast('📊 Excel baixado!', 'success');
+  XLSX.utils.book_append_sheet(wb, ws, "Estoque");
+  XLSX.writeFile(wb, 'StockPro-Estoque.xlsx');
+  showToast('📊 Excel exportado!');
 }
 
-// ===== SUAS FUNÇÕES ORIGINAIS COM PROTEÇÃO =====
-function fmt(v){return'R$ '+parseFloat(v||0).toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.');}
-function fmtData(d){if(!d)return'';const p=d.split('-');return p[2]+'/'+p[1]+'/'+p[0];}
-function hoje(){return new Date().toISOString().split('T')[0];}
-function salvar(){localStorage.setItem('stockpro_db',JSON.stringify(DB));if(window._fbSalvar)window._fbSalvar(DB);}
-function carregar(){protegerSenhas();telaLogin(); /* seu resto do carregar */ }
+// ===== SEU SCRIPT ORIGINAL COLE AQUI =====
+// Cole TODO o conteúdo do seu paste.txt (146k chars) DEPOIS deste comentário
+// const DB = { ... seus 78 produtos ... };
+// let estado = { ... };
+// function fmt() { ... }
+// function telaLogin() { ... }
+// ... todo o resto intacto
 
-function telaLogin(){
-  render('<div class="login-container">... seu HTML login intact ...</div>');
-}
-
-function fazerLogin(){
-  protegerSenhas();
-  const u=document.getElementById('l-user').value.trim();
-  const s=document.getElementById('l-senha').value;
-  const usr=DB.usuarios.find(x=>x.usuario===u&&hashSenha(s)===x.senhaHash&&x.ativo);
-  if(!usr){ /* erro */ return; }
-  usuarioLogado = usr; estado.usuario = usr;
-  sessionStorage.setItem('jwt_stockpro', gerarJWT(usr));
-  adicionarLog('LOGIN');
-  renderApp();
-}
-
-function finalizarVenda(){
-  if (!verificarSessao()) return;
-  /* seu código venda intact */
-  adicionarLog('VENDA_REALIZADA', {total, itens:estado.vendaAtual.length});
-  salvar();
-}
-
-// ===== BOTÕES EXPORT EM CADA TELA (exemplo dashboard) =====
-function renderApp(){
-  const html = `... seu dashboard HTML + 
-    <div class="export-buttons">
-      <button onclick="exportPDF('dashboard')" class="btn-pdf">📄 PDF Dashboard</button>
-      <button onclick="exportExcel(DB.produtos.filter(p=>p.ativo),'estoque')" class="btn-excel">📦 Excel Estoque</button>
-    </div>`;
-  render(html);
-}
-
-// INICIAR
-carregar();
-if (sessionStorage.getItem('jwt_stockpro')) verificarSessao();
+console.log('StockPro v2.0 carregado com PDF/Excel!');
 </script>
 </body>
 </html>
