@@ -1,4 +1,70 @@
-function removerProduto(productId) {
-    // Logic to remove product from catalog
-    console.log('Product ' + productId + ' removed');
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockPro v2.0</title>
+</head>
+<body>
+    <header>
+        <h1>Welcome to StockPro v2.0</h1>
+    </header>
+    <nav>
+        <ul>
+            <li><a href="#login">Login</a></li>
+            <li><a href="#dashboard">Dashboard</a></li>
+            <li><a href="#catalog">Catalog</a></li>
+            <li><a href="#sales">Sales</a></li>
+            <li><a href="#reports">Reports</a></li>
+            <li><a href="#users">Users</a></li>
+        </ul>
+    </nav>
+    <main>
+        <section id="login">
+            <h2>Login</h2>
+            <form>
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password">
+                <button type="submit">Login</button>
+            </form>
+        </section>
+        <section id="dashboard">
+            <h2>Dashboard</h2>
+            <p>Your dashboard overview.</p>
+        </section>
+        <section id="catalog">
+            <h2>Catalog</h2>
+            <ul id="product-list">
+                <li>
+                    Product 1
+                    <button onclick="removerProduto(productId)">Remove</button>
+                </li>
+                <!-- Additional products would be listed here -->
+            </ul>
+        </section>
+        <section id="sales">
+            <h2>Sales</h2>
+            <p>Sales information goes here.</p>
+        </section>
+        <section id="reports">
+            <h2>Reports</h2>
+            <p>Access your reports here.</p>
+        </section>
+        <section id="users">
+            <h2>Users</h2>
+            <p>User management features.</p>
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2026 StockPro</p>
+    </footer>
+    <script>
+        function removerProduto(productId) {
+            // Logic to remove the product with the given productId
+            console.log(`Removing product with ID: ${productId}`);
+        }
+    </script>
+</body>
+</html>
